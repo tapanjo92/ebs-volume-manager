@@ -40,7 +40,7 @@ export class ApiStack extends BaseStack {
   private createApiGateway(): apigateway.RestApi {
     const logGroup = new logs.LogGroup(this, 'ApiLogs', {
       logGroupName: `/aws/apigateway/${this.createResourceName('api')}`,
-      retention: logs.RetentionDays.SEVEN_DAYS,
+      retention: logs.RetentionDays.ONE_WEEK,
       removalPolicy: this.config.environment === 'production'
         ? cdk.RemovalPolicy.RETAIN
         : cdk.RemovalPolicy.DESTROY,
@@ -173,14 +173,14 @@ export class ApiStack extends BaseStack {
     // GET /volumes
     volumesResource.addMethod('GET', new apigateway.LambdaIntegration(handlers.volumes), {
       authorizer,
-      authorizationType: apigateway.AuthorizationType.COGNITO_USER_POOLS,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
     // POST /volumes/scan
     const scanResource = volumesResource.addResource('scan');
     scanResource.addMethod('POST', new apigateway.LambdaIntegration(handlers.scan), {
       authorizer,
-      authorizationType: apigateway.AuthorizationType.COGNITO_USER_POOLS,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
     // /volumes/{volumeId}
@@ -189,20 +189,20 @@ export class ApiStack extends BaseStack {
     // GET /volumes/{volumeId}
     volumeResource.addMethod('GET', new apigateway.LambdaIntegration(handlers.volumes), {
       authorizer,
-      authorizationType: apigateway.AuthorizationType.COGNITO_USER_POOLS,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
     // POST /volumes/{volumeId}/backup
     const backupResource = volumeResource.addResource('backup');
     backupResource.addMethod('POST', new apigateway.LambdaIntegration(handlers.backup), {
       authorizer,
-      authorizationType: apigateway.AuthorizationType.COGNITO_USER_POOLS,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
     // DELETE /volumes/{volumeId}
     volumeResource.addMethod('DELETE', new apigateway.LambdaIntegration(handlers.volumes), {
       authorizer,
-      authorizationType: apigateway.AuthorizationType.COGNITO_USER_POOLS,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
     // Create /analytics resource
@@ -212,14 +212,14 @@ export class ApiStack extends BaseStack {
     const volumeAnalyticsResource = analyticsResource.addResource('volumes');
     volumeAnalyticsResource.addMethod('GET', new apigateway.LambdaIntegration(handlers.analytics), {
       authorizer,
-      authorizationType: apigateway.AuthorizationType.COGNITO_USER_POOLS,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
     });
 
     // GET /analytics/costs
     const costAnalyticsResource = analyticsResource.addResource('costs');
     costAnalyticsResource.addMethod('GET', new apigateway.LambdaIntegration(handlers.analytics), {
       authorizer,
-      authorizationType: apigateway.AuthorizationType.COGNITO_USER_POOLS,
+      authorizationType: apigateway.AuthorizationType.COGNITO,
     });
   }
 

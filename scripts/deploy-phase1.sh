@@ -44,16 +44,17 @@ USER_POOL_ID=$(jq -r '.["ebs-volume-manager-cognito-development"].UserPoolId' co
 USER_POOL_CLIENT_ID=$(jq -r '.["ebs-volume-manager-cognito-development"].UserPoolClientId' cognito-outputs.json)
 IDENTITY_POOL_ID=$(jq -r '.["ebs-volume-manager-cognito-development"].IdentityPoolId' cognito-outputs.json)
 API_URL=$(jq -r '.["ebs-volume-manager-api-development"].ApiUrl' api-outputs.json)
+REGION=${AWS_REGION:-ap-south-1}
 
 # Update frontend environment
 cd frontend
-cat > .env.local << 'ENVEOF'
-NEXT_PUBLIC_AWS_REGION=$REGION
-NEXT_PUBLIC_USER_POOL_ID=$USER_POOL_ID
-NEXT_PUBLIC_USER_POOL_CLIENT_ID=$USER_POOL_CLIENT_ID
-NEXT_PUBLIC_IDENTITY_POOL_ID=$IDENTITY_POOL_ID
-NEXT_PUBLIC_API_BASE_URL=$API_URL
-ENVEOF
+cat > .env.local << EOF
+NEXT_PUBLIC_AWS_REGION=${REGION}
+NEXT_PUBLIC_USER_POOL_ID=${USER_POOL_ID}
+NEXT_PUBLIC_USER_POOL_CLIENT_ID=${USER_POOL_CLIENT_ID}
+NEXT_PUBLIC_IDENTITY_POOL_ID=${IDENTITY_POOL_ID}
+NEXT_PUBLIC_API_BASE_URL=${API_URL}
+EOF
 
 echo "🎨 Building frontend..."
 npm install

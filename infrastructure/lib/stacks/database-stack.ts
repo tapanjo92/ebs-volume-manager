@@ -65,7 +65,7 @@ export class DatabaseStack extends BaseStack {
   private createDatabase(vpc: ec2.Vpc, securityGroup: ec2.SecurityGroup): rds.DatabaseInstance {
     const db = new rds.DatabaseInstance(this, 'Database', {
       engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_15_3,
+        version: rds.PostgresEngineVersion.VER_15_7,
       }),
       instanceType: ec2.InstanceType.of(
         ec2.InstanceClass.T4G,
