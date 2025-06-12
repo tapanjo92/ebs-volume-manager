@@ -46,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (err) {
       console.error('Auth check failed:', err);
+      // Don't set error here as it's expected on initial load
     } finally {
       setLoading(false);
     }
@@ -53,21 +54,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadUserFromSession = async (session: CognitoUserSession) => {
     try {
-      const claims = authService.getUserClaims();
-      const attributes = await authService.getUserAttributes();
+      // Get claims from ID token
+      const idToken = session.getIdToken();
+      const claims = idToken.payload;
       
-      const attributesMap: Record<string, string> = {};
-      attributes.forEach(attr => {
-        attributesMap[attr.getName()] = attr.getValue();
-      });
-      
-      setUser({
-        email: claims.email,
-        tenantId: claims.tenantId || 'default',
-        userRole: claims.userRole || 'user',
+      // Build user object from token claims
+      const user: User = {
+        email: claims.email || '',
+        tenantId: claims.tenantId || claims['custom:tenantId'] || 'default',
+        userRole: claims.userRole || claims['custom:userRole'] || 'user',
         permissions: claims.permissions ? claims.permissions.split(',') : [],
-        attributes: attributesMap,
-      });
+        attributes: {},
+      };
+      
+      // Try to get additional attributes, but don't fail if it errors
+      try {
+        const attributes = await authService.getUserAttributes();
+        const attributesMap: Record<string, string> = {};
+        attributes.forEach(attr => {
+          const name = attr.getName();
+          const value = attr.getValue();
+          // Remove 'custom:' prefix if present
+          const cleanName = name.startsWith('custom:') ? name.substring(7) : name;
+          attributesMap[cleanName] = value;
+        });
+        user.attributes = attributesMap;
+      } catch (attrError) {
+        console.warn('Could not fetch user attributes:', attrError);
+        // Continue without attributes - they're not critical
+      }
+      
+      setUser(user);
     } catch (err) {
       console.error('Failed to load user from session:', err);
       setError('Failed to load user data');
@@ -82,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const session = await authService.signIn(email, password);
       await loadUserFromSession(session);
     } catch (err: any) {
+      console.error('Sign in error:', err);
       setError(err.message || 'Sign in failed');
       throw err;
     } finally {
@@ -94,8 +112,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       setLoading(true);
       
-      await authService.signUp(email, password, attributes);
+      // Ensure we have the required custom attributes
+      const signUpAttributes = {
+        ...attributes,
+        'custom:tenantId': attributes['custom:tenantId'] || 'default-tenant',
+        'custom:userRole': attributes['custom:userRole'] || 'user',
+      };
+      
+      await authService.signUp(email, password, signUpAttributes);
     } catch (err: any) {
+      console.error('Sign up error:', err);
       setError(err.message || 'Sign up failed');
       throw err;
     } finally {
@@ -151,9 +177,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (session) {
         await loadUserFromSession(session);
+      } else {
+        setUser(null);
       }
     } catch (err: any) {
       setError(err.message || 'Session refresh failed');
+      setUser(null);
       throw err;
     }
   };
