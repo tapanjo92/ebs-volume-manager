@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# CDK
+*.js
+!jest.config.js
+*.d.ts
+cdk.out/
+.cdk.staging/
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# AWS
+.aws-sam/
+samconfig.toml
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
