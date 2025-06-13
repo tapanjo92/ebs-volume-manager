@@ -8,6 +8,7 @@ yarn-error.log*
 # CDK
 *.js
 !jest.config.js
+!infrastructure/lib/lambda/**/*.js
 *.d.ts
 cdk.out/
 .cdk.staging/
@@ -46,3 +47,4 @@ coverage/
 # Temporary files
 tmp/
 temp/
+
