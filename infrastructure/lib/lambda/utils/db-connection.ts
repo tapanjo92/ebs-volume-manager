@@ -43,7 +43,7 @@ export class TenantAwareDbConnection {
   
   async getPool(): Promise<Pool> {
     if (!this.pool) {
-      const credentials = await getCredentials();
+      const credentials = await this.getCredentials(); // Fix: use this.getCredentials()
       this.pool = new Pool({
         ...credentials,
         max: 20,

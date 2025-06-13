@@ -1,3 +1,4 @@
+// infrastructure/lib/stacks/cognito-stack.ts
 import * as cdk from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
@@ -51,12 +52,12 @@ export class CognitoStack extends BaseStack {
         },
       },
       customAttributes: {
-        tenantId: new cognito.StringAttribute({
+        tenant_id: new cognito.StringAttribute({
           mutable: false,
           minLen: 1,
           maxLen: 256,
         }),
-        userRole: new cognito.StringAttribute({
+        user_role: new cognito.StringAttribute({
           mutable: true,
           minLen: 1,
           maxLen: 50,
@@ -108,7 +109,7 @@ export class CognitoStack extends BaseStack {
           fullname: true,
           emailVerified: true,
         })
-        .withCustomAttributes('tenantId', 'userRole', 'permissions'),
+        .withCustomAttributes('tenant_id', 'user_role', 'permissions'),
       writeAttributes: new cognito.ClientAttributes()
         .withStandardAttributes({
           email: true,
@@ -171,6 +172,8 @@ export class CognitoStack extends BaseStack {
       handler: 'index.handler',
       code: lambda.Code.fromInline(`
         exports.handler = async (event) => {
+          console.log('Pre-signup event:', JSON.stringify(event, null, 2));
+          
           // Auto-confirm user for development
           if (process.env.ENVIRONMENT === 'development') {
             event.response.autoConfirmUser = true;
@@ -178,12 +181,12 @@ export class CognitoStack extends BaseStack {
           }
           
           // Set default tenant ID if not provided
-          if (!event.request.userAttributes['custom:tenantId']) {
-            event.request.userAttributes['custom:tenantId'] = 'default-tenant';
+          if (!event.request.userAttributes['custom:tenant_id']) {
+            event.request.userAttributes['custom:tenant_id'] = 'default-tenant';
           }
           
           // Set default role
-          event.request.userAttributes['custom:userRole'] = 'user';
+          event.request.userAttributes['custom:user_role'] = 'user';
           
           return event;
         };
@@ -191,34 +194,42 @@ export class CognitoStack extends BaseStack {
       environment: {
         ENVIRONMENT: this.config.environment,
       },
+      timeout: cdk.Duration.seconds(5),
     });
     
     userPool.addTrigger(cognito.UserPoolOperation.PRE_SIGN_UP, preSignupLambda);
     
-    // Pre-token generation trigger
+    // Pre-token generation trigger - NOW USING EXTERNAL FILE
     const preTokenGenerationLambda = new lambda.Function(this, 'PreTokenGenerationLambda', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'pre-token-generation.handler',
+      code: lambda.Code.fromAsset('lib/lambda/cognito'),
+      timeout: cdk.Duration.seconds(5),
+      description: 'Adds custom claims to Cognito tokens',
+    });
+    
+    userPool.addTrigger(cognito.UserPoolOperation.PRE_TOKEN_GENERATION, preTokenGenerationLambda);
+    
+    // Optional: Post-confirmation trigger for user setup
+    const postConfirmationLambda = new lambda.Function(this, 'PostConfirmationLambda', {
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'index.handler',
       code: lambda.Code.fromInline(`
         exports.handler = async (event) => {
-          const tenantId = event.request.userAttributes['custom:tenantId'];
-          const userRole = event.request.userAttributes['custom:userRole'] || 'user';
-          const permissions = event.request.userAttributes['custom:permissions'] || '';
+          console.log('Post-confirmation event:', JSON.stringify(event, null, 2));
           
-          event.response = {
-            claimsToAddOrOverride: {
-              tenantId: tenantId,
-              userRole: userRole,
-              permissions: permissions,
-            },
-          };
+          // Here you could:
+          // 1. Create user record in database
+          // 2. Send welcome email
+          // 3. Set up default permissions
           
           return event;
         };
       `),
+      timeout: cdk.Duration.seconds(5),
     });
     
-    userPool.addTrigger(cognito.UserPoolOperation.PRE_TOKEN_GENERATION, preTokenGenerationLambda);
+    userPool.addTrigger(cognito.UserPoolOperation.POST_CONFIRMATION, postConfirmationLambda);
   }
   
   private createOutputs(): void {

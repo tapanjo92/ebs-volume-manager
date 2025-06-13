@@ -1,11 +1,12 @@
-
-
+// infrastructure/lib/stacks/api-stack.ts
 import * as cdk from 'aws-cdk-lib';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as rds from 'aws-cdk-lib/aws-rds';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
 import { BaseStack, BaseStackProps } from './base-stack';
 
@@ -13,6 +14,8 @@ export interface ApiStackProps extends BaseStackProps {
   userPool: cognito.UserPool;
   volumesTable: cdk.aws_dynamodb.Table;
   scanQueue: cdk.aws_sqs.Queue;
+  databaseSecret: secretsmanager.Secret;  // ADD THIS
+  databaseProxy: rds.DatabaseProxy;       // ADD THIS
 }
 
 export class ApiStack extends BaseStack {
@@ -57,11 +60,9 @@ export class ApiStack extends BaseStack {
         accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields(),
       },
       defaultCorsPreflightOptions: {
-        allowOrigins: [
-          'http://localhost:3000',  // For local development
-          // Add your production frontend URL here later
-          // 'https://your-production-domain.com'
-        ],
+        allowOrigins: this.config.environment === 'production'
+          ? ['https://your-production-domain.com'] // FIX THIS
+          : ['http://localhost:3000'],
         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowHeaders: [
           'Content-Type',
@@ -70,7 +71,7 @@ export class ApiStack extends BaseStack {
           'X-Api-Key',
           'X-Amz-Security-Token',
         ],
-        allowCredentials: true, // This is crucial
+        allowCredentials: true,
       },
     });
   }
@@ -86,33 +87,37 @@ export class ApiStack extends BaseStack {
   private createApiHandlers(props: ApiStackProps): Record<string, lambda.Function> {
     const handlers: Record<string, lambda.Function> = {};
 
-    // Shared Lambda layer
-    const sharedLayer = new lambda.LayerVersion(this, 'SharedLayer', {
-      code: lambda.Code.fromAsset('lib/lambda/layers/shared'),
+    // Shared Lambda layer with database dependencies
+    const dbLayer = new lambda.LayerVersion(this, 'DatabaseLayer', {
+      code: lambda.Code.fromAsset('lib/lambda/layers/database'),
       compatibleRuntimes: [lambda.Runtime.NODEJS_20_X],
-      description: 'Shared utilities and dependencies',
+      description: 'PostgreSQL client and utilities',
     });
 
-    // Volumes handler
+    // Common database environment variables
+    const dbEnvironment = {
+      DB_SECRET_ARN: props.databaseSecret.secretArn,
+      DB_PROXY_ENDPOINT: props.databaseProxy.endpoint,
+    };
+
+    // Volumes handler - USING POSTGRESQL VERSION
     handlers.volumes = new lambda.Function(this, 'VolumesHandler', {
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'volumes.handler',
+      handler: 'volumes-postgres.handler', // CRITICAL: Use PostgreSQL handler
       code: lambda.Code.fromAsset('lib/lambda/api'),
       environment: {
-        VOLUMES_TABLE_NAME: props.volumesTable.tableName,
-        SCAN_QUEUE_URL: props.scanQueue.queueUrl,
+        ...dbEnvironment,
         ALLOWED_ORIGIN: this.config.environment === 'production'
-          ? 'https://your-production-domain.com' // Replace with your actual domain
+          ? 'https://your-production-domain.com'
           : 'http://localhost:3000',
       },
-      layers: [sharedLayer],
+      layers: [dbLayer],
       timeout: cdk.Duration.seconds(30),
       tracing: lambda.Tracing.ACTIVE,
     });
 
-    // Grant permissions
-    props.volumesTable.grantReadWriteData(handlers.volumes);
-    props.scanQueue.grantSendMessages(handlers.volumes);
+    // Grant permissions to read database secret
+    props.databaseSecret.grantRead(handlers.volumes);
 
     // Scan handler
     handlers.scan = new lambda.Function(this, 'ScanHandler', {
@@ -120,17 +125,18 @@ export class ApiStack extends BaseStack {
       handler: 'scan.handler',
       code: lambda.Code.fromAsset('lib/lambda/api'),
       environment: {
+        ...dbEnvironment,
         SCAN_QUEUE_URL: props.scanQueue.queueUrl,
-        SCAN_HISTORY_TABLE_NAME: process.env.SCAN_HISTORY_TABLE_NAME || '',
         ALLOWED_ORIGIN: this.config.environment === 'production'
-          ? 'https://your-production-domain.com' // Replace with your actual domain
+          ? 'https://your-production-domain.com'
           : 'http://localhost:3000',
       },
-      layers: [sharedLayer],
+      layers: [dbLayer],
       timeout: cdk.Duration.seconds(30),
       tracing: lambda.Tracing.ACTIVE,
     });
 
+    props.databaseSecret.grantRead(handlers.scan);
     props.scanQueue.grantSendMessages(handlers.scan);
 
     // Backup handler
@@ -139,15 +145,17 @@ export class ApiStack extends BaseStack {
       handler: 'backup.handler',
       code: lambda.Code.fromAsset('lib/lambda/api'),
       environment: {
-        VOLUMES_TABLE_NAME: props.volumesTable.tableName,
+        ...dbEnvironment,
         ALLOWED_ORIGIN: this.config.environment === 'production'
-          ? 'https://your-production-domain.com' // Replace with your actual domain
+          ? 'https://your-production-domain.com'
           : 'http://localhost:3000',
       },
-      layers: [sharedLayer],
+      layers: [dbLayer],
       timeout: cdk.Duration.minutes(5),
       tracing: lambda.Tracing.ACTIVE,
     });
+
+    props.databaseSecret.grantRead(handlers.backup);
 
     // Add EC2 permissions for backup operations
     handlers.backup.addToRolePolicy(new iam.PolicyStatement({
@@ -155,6 +163,7 @@ export class ApiStack extends BaseStack {
         'ec2:CreateSnapshot',
         'ec2:CreateTags',
         'ec2:DescribeSnapshots',
+        'sts:AssumeRole', // For cross-account access
       ],
       resources: ['*'],
     }));
@@ -165,17 +174,17 @@ export class ApiStack extends BaseStack {
       handler: 'analytics.handler',
       code: lambda.Code.fromAsset('lib/lambda/api'),
       environment: {
-        VOLUMES_TABLE_NAME: props.volumesTable.tableName,
+        ...dbEnvironment,
         ALLOWED_ORIGIN: this.config.environment === 'production'
-          ? 'https://your-production-domain.com' // Replace with your actual domain
+          ? 'https://your-production-domain.com'
           : 'http://localhost:3000',
       },
-      layers: [sharedLayer],
+      layers: [dbLayer],
       timeout: cdk.Duration.seconds(30),
       tracing: lambda.Tracing.ACTIVE,
     });
 
-    props.volumesTable.grantReadData(handlers.analytics);
+    props.databaseSecret.grantRead(handlers.analytics);
 
     return handlers;
   }

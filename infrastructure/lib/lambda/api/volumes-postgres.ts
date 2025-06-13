@@ -49,7 +49,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
           }),
         };
       }
-      return await deleteVolume(tenantId, volumeId, userRole);
+      return await deleteVolume(tenantId, volumeId, userRole, event);
     }
     
     return {
@@ -191,7 +191,7 @@ async function getVolume(tenantId: string, volumeId: string) {
   }
 }
 
-async function deleteVolume(tenantId: string, volumeId: string, userRole: string) {
+async function deleteVolume(tenantId: string, volumeId: string, userRole: string, event: any) {
   try {
     // Additional check for admin role
     if (userRole !== 'admin') {

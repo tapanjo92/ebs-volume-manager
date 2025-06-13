@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// infrastructure/bin/infrastructure.ts
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { CognitoStack } from '../lib/stacks/cognito-stack';
@@ -13,7 +14,7 @@ const config = getEnvironmentConfig();
 
 const env = {
   account: process.env.CDK_DEFAULT_ACCOUNT || process.env.AWS_ACCOUNT_ID,
-  region: process.env.CDK_DEFAULT_REGION || process.env.AWS_REGION || 'us-east-1',
+  region: process.env.CDK_DEFAULT_REGION || process.env.AWS_REGION || 'ap-south-1',
 };
 
 // Create VPC Stack
@@ -37,19 +38,36 @@ const databaseStack = new DatabaseStack(app, `${config.projectName}-database-${c
   vpc: vpcStack.vpc,
 });
 
+// Add explicit dependency
+databaseStack.addDependency(vpcStack);
+
 // Create Scanner Stack
 const scannerStack = new ScannerStack(app, `${config.projectName}-scanner-${config.environment}`, {
   config,
   env,
+  vpc: vpcStack.vpc,
+  databaseSecret: databaseStack.databaseSecret,
+  databaseProxy: databaseStack.proxy,
 });
 
-// Create API Stack
+// Add dependencies
+scannerStack.addDependency(vpcStack);
+scannerStack.addDependency(databaseStack);
+
+// Create API Stack with database connection info
 const apiStack = new ApiStack(app, `${config.projectName}-api-${config.environment}`, {
   config,
   env,
   userPool: cognitoStack.userPool,
   volumesTable: scannerStack.volumesTable,
   scanQueue: scannerStack.scanQueue,
+  databaseSecret: databaseStack.databaseSecret,  // CRITICAL: Pass database info
+  databaseProxy: databaseStack.proxy,              // CRITICAL: Pass proxy info
 });
+
+// Add dependencies
+apiStack.addDependency(cognitoStack);
+apiStack.addDependency(scannerStack);
+apiStack.addDependency(databaseStack);
 
 app.synth();
