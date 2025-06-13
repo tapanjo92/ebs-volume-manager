@@ -1,8 +1,17 @@
-*.js
+# Ignore JS files at the repo root only
+/*.js
 !jest.config.js
+
+# Ignore declaration files everywhere
 *.d.ts
+
+# Always track JS files inside lambda functions
+!infrastructure/lib/lambda/**/*.js
+
+# Node modules
 node_modules
 
-# CDK asset staging directory
+# CDK build directories
 .cdk.staging
 cdk.out
+
