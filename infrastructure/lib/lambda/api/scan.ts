@@ -5,6 +5,11 @@ import { v4 as uuidv4 } from 'uuid';
 const sqs = new SQSClient({});
 const queueUrl = process.env.SCAN_QUEUE_URL!;
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || '*',
+  'Access-Control-Allow-Credentials': 'true',
+};
+
 export const handler: APIGatewayProxyHandler = async (event) => {
   console.log('Event:', JSON.stringify(event, null, 2));
   
@@ -16,7 +21,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     if (!tenantId) {
       return {
         statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        },
         body: JSON.stringify({ error: 'Unauthorized: Missing tenant ID' }),
       };
     }
@@ -28,7 +36,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     if (!accountId || !roleArn || !externalId) {
       return {
         statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        },
         body: JSON.stringify({ error: 'Missing required parameters' }),
       };
     }
@@ -53,7 +64,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     
     return {
       statusCode: 202,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      },
       body: JSON.stringify({
         scanId,
         status: 'queued',
@@ -64,7 +78,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     console.error('Error:', error);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      },
       body: JSON.stringify({ error: 'Internal server error' }),
     };
   }

@@ -5,6 +5,11 @@ import { DynamoDBDocumentClient, QueryCommand, GetCommand, DeleteCommand } from 
 const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const tableName = process.env.VOLUMES_TABLE_NAME!;
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || '*',
+  'Access-Control-Allow-Credentials': 'true',
+};
+
 export const handler: APIGatewayProxyHandler = async (event) => {
   console.log('Event:', JSON.stringify(event, null, 2));
   
@@ -16,7 +21,10 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     if (!tenantId) {
       return {
         statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        },
         body: JSON.stringify({ error: 'Unauthorized: Missing tenant ID' }),
       };
     }
@@ -35,14 +43,20 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     
     return {
       statusCode: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      },
       body: JSON.stringify({ error: 'Invalid request' }),
     };
   } catch (error) {
     console.error('Error:', error);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      },
       body: JSON.stringify({ error: 'Internal server error' }),
     };
   }
@@ -74,7 +88,10 @@ async function listVolumes(tenantId: string, queryParams: any) {
   
   return {
     statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders
+    },
     body: JSON.stringify(result),
   };
 }
@@ -91,14 +108,20 @@ async function getVolume(tenantId: string, volumeId: string) {
   if (!response.Item) {
     return {
       statusCode: 404,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      },
       body: JSON.stringify({ error: 'Volume not found' }),
     };
   }
   
   return {
     statusCode: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders
+    },
     body: JSON.stringify(response.Item),
   };
 }
@@ -117,7 +140,10 @@ async function deleteVolume(tenantId: string, volumeId: string) {
   
   return {
     statusCode: 204,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders
+    },
     body: '',
   };
 }

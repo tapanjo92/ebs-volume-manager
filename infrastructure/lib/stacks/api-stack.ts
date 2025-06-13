@@ -57,8 +57,12 @@ export class ApiStack extends BaseStack {
         accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields(),
       },
       defaultCorsPreflightOptions: {
-        allowOrigins: apigateway.Cors.ALL_ORIGINS,
-        allowMethods: apigateway.Cors.ALL_METHODS,
+        allowOrigins: [
+          'http://localhost:3000',  // For local development
+          // Add your production frontend URL here later
+          // 'https://your-production-domain.com'
+        ],
+        allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowHeaders: [
           'Content-Type',
           'X-Amz-Date',
@@ -66,6 +70,7 @@ export class ApiStack extends BaseStack {
           'X-Api-Key',
           'X-Amz-Security-Token',
         ],
+        allowCredentials: true, // This is crucial
       },
     });
   }
@@ -96,6 +101,9 @@ export class ApiStack extends BaseStack {
       environment: {
         VOLUMES_TABLE_NAME: props.volumesTable.tableName,
         SCAN_QUEUE_URL: props.scanQueue.queueUrl,
+        ALLOWED_ORIGIN: this.config.environment === 'production'
+          ? 'https://your-production-domain.com' // Replace with your actual domain
+          : 'http://localhost:3000',
       },
       layers: [sharedLayer],
       timeout: cdk.Duration.seconds(30),
@@ -114,6 +122,9 @@ export class ApiStack extends BaseStack {
       environment: {
         SCAN_QUEUE_URL: props.scanQueue.queueUrl,
         SCAN_HISTORY_TABLE_NAME: process.env.SCAN_HISTORY_TABLE_NAME || '',
+        ALLOWED_ORIGIN: this.config.environment === 'production'
+          ? 'https://your-production-domain.com' // Replace with your actual domain
+          : 'http://localhost:3000',
       },
       layers: [sharedLayer],
       timeout: cdk.Duration.seconds(30),
@@ -129,6 +140,9 @@ export class ApiStack extends BaseStack {
       code: lambda.Code.fromAsset('lib/lambda/api'),
       environment: {
         VOLUMES_TABLE_NAME: props.volumesTable.tableName,
+        ALLOWED_ORIGIN: this.config.environment === 'production'
+          ? 'https://your-production-domain.com' // Replace with your actual domain
+          : 'http://localhost:3000',
       },
       layers: [sharedLayer],
       timeout: cdk.Duration.minutes(5),
@@ -152,6 +166,9 @@ export class ApiStack extends BaseStack {
       code: lambda.Code.fromAsset('lib/lambda/api'),
       environment: {
         VOLUMES_TABLE_NAME: props.volumesTable.tableName,
+        ALLOWED_ORIGIN: this.config.environment === 'production'
+          ? 'https://your-production-domain.com' // Replace with your actual domain
+          : 'http://localhost:3000',
       },
       layers: [sharedLayer],
       timeout: cdk.Duration.seconds(30),
